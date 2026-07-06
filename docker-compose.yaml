@@ -1,0 +1,48 @@
+services:
+  ollama:
+    volumes:
+      - ollama_data:/root/.ollama
+    container_name: ollama
+    pull_policy: always
+    tty: true
+    restart: unless-stopped
+    image: ollama/ollama:latest
+    # Remove the deploy block below if you do not have an Nvidia GPU
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  open-webui:
+    image: faultylogic/open-webui-dynatrace:latest
+    container_name: open-webui
+    ports:
+      - "3000:8080"
+    volumes:
+      - open-webui_data:/app/backend/data
+      - ./traceloop_init.py:/app/traceloop_init.py
+    environment:
+      - 'OLLAMA_BASE_URL=http://ollama:11434'
+      - ENABLE_OTEL=true
+      - ENABLE_OTEL_TRACES=true
+      - ENABLE_OTEL_METRICS=true
+      - ENABLE_OTEL_LOGS=true
+      - OTEL_EXPORTER_OTLP_ENDPOINT=<dynatrace-environmnet>/api/v2/otlp/v1/traces
+      - OTEL_METRICS_EXPORTER_OTLP_ENDPOINT=<dynatrace-environmnet>/api/v2/otlp/v1/metrics
+      - OTEL_LOGS_EXPORTER_OTLP_ENDPOINT=<dynatrace-environmnet>/api/v2/otlp/v1/logs
+      - OTEL_OTLP_SPAN_EXPORTER=http
+      - OTEL_METRICS_OTLP_SPAN_EXPORTER=http
+      - OTEL_LOGS_OTLP_SPAN_EXPORTER=http
+      - OTEL_EXPORTER_OTLP_HEADERS=Authorization=Api-Token <dynatrace token with ingest perms>
+      - OTEL_SERVICE_NAME=open-webui
+      - PYTHONSTARTUP=/app/traceloop_init.py
+    restart: unless-stopped
+    depends_on:
+      - ollama
+
+volumes:
+  ollama_data:
+  open-webui_data:
